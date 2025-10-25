@@ -35,8 +35,7 @@ const getAllOffers = async (req, res) => {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
         { description: { $regex: search, $options: 'i' } },
-        { leadId: { $regex: search, $options: 'i' } },
-        { company: { $regex: search, $options: 'i' } }
+        { leadId: { $regex: search, $options: 'i' } }
       ];
     }
 
@@ -251,7 +250,6 @@ const approveOffer = async (req, res) => {
     offer.isApproved = true;
     offer.approvedBy = userId || null;
     offer.approvedAt = new Date();
-    offer.status = 'Active';
 
     await offer.save();
 
@@ -288,7 +286,6 @@ const rejectOffer = async (req, res) => {
     }
 
     offer.isApproved = false;
-    offer.status = 'Rejected';
     offer.rejectionReason = reason || 'No reason provided';
 
     await offer.save();
@@ -314,10 +311,8 @@ const rejectOffer = async (req, res) => {
 const getOfferStats = async (req, res) => {
   try {
     const totalOffers = await Offer.countDocuments();
-    const activeOffers = await Offer.countDocuments({ status: 'Active' });
-    const pendingOffers = await Offer.countDocuments({ status: 'Pending' });
     const approvedOffers = await Offer.countDocuments({ isApproved: true });
-    const rejectedOffers = await Offer.countDocuments({ status: 'Rejected' });
+    const pendingOffers = await Offer.countDocuments({ isApproved: false });
 
     // Get category breakdown
     const categoryStats = await Offer.aggregate([
@@ -337,10 +332,8 @@ const getOfferStats = async (req, res) => {
       message: 'Offer statistics retrieved successfully',
       data: {
         total: totalOffers,
-        active: activeOffers,
-        pending: pendingOffers,
         approved: approvedOffers,
-        rejected: rejectedOffers,
+        pending: pendingOffers,
         byCategory: categoryStats
       }
     });

@@ -14,6 +14,17 @@ const userSchema = new mongoose.Schema({
             message: 'Phone number must be 10 digits'
         }
     },
+    name: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    email: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        default: ''
+    },
     password: {
         type: String,
         required: [true, 'Password is required'],

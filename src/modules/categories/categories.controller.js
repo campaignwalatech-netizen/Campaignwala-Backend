@@ -100,13 +100,13 @@ const getCategoryById = async (req, res) => {
  */
 const createCategory = async (req, res) => {
   try {
-    const { name, description, earnUpto, icon, iconImage, status } = req.body;
+    const { name, description, icon, iconImage, status } = req.body;
 
     // Validate required fields
-    if (!name || !description || !earnUpto) {
+    if (!name || !description) {
       return res.status(400).json({
         success: false,
-        message: 'Name, description, and earnUpto are required fields'
+        message: 'Name and description are required fields'
       });
     }
 
@@ -126,7 +126,6 @@ const createCategory = async (req, res) => {
     const category = await Category.create({
       name,
       description,
-      earnUpto,
       icon: icon || '',
       iconImage: iconImage || '',
       status: status || 'active',
@@ -163,7 +162,7 @@ const createCategory = async (req, res) => {
 const updateCategory = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, earnUpto, icon, iconImage, status } = req.body;
+    const { name, description, icon, iconImage, status } = req.body;
 
     // Check if category exists
     const category = await Category.findById(id);
@@ -193,7 +192,6 @@ const updateCategory = async (req, res) => {
     // Update fields
     if (name) category.name = name;
     if (description) category.description = description;
-    if (earnUpto) category.earnUpto = earnUpto;
     if (icon !== undefined) category.icon = icon;
     if (iconImage !== undefined) category.iconImage = iconImage;
     if (status) category.status = status;

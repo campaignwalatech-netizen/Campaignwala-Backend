@@ -13,7 +13,9 @@ const {
     updateUserRole,
     toggleUserStatus,
     deleteUser,
-    getDashboardStats
+    getDashboardStats,
+    forgotPassword,
+    resetPassword
 } = require('./user.controller');
 
 const {
@@ -760,5 +762,85 @@ router.delete('/admin/users/:userId', authenticateToken, requireAdmin, deleteUse
  *               $ref: '#/components/schemas/Error'
  */
 router.get('/admin/dashboard-stats', authenticateToken, requireAdmin, getDashboardStats);
+
+/**
+ * @swagger
+ * /api/users/forgot-password:
+ *   post:
+ *     summary: Request password reset OTP
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phoneNumber
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 description: Registered phone number
+ *                 example: "9876543210"
+ *     responses:
+ *       200:
+ *         description: Reset OTP sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post('/forgot-password', forgotPassword);
+
+/**
+ * @swagger
+ * /api/users/reset-password:
+ *   post:
+ *     summary: Reset password with OTP
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phoneNumber
+ *               - otp
+ *               - newPassword
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 description: Phone number
+ *                 example: "9876543210"
+ *               otp:
+ *                 type: string
+ *                 description: OTP received
+ *                 example: "100623"
+ *               newPassword:
+ *                 type: string
+ *                 description: New password (minimum 6 characters)
+ *                 example: "newpassword123"
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ *       400:
+ *         description: Invalid OTP or password
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post('/reset-password', resetPassword);
 
 module.exports = router;

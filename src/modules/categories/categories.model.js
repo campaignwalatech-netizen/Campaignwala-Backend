@@ -16,9 +16,6 @@ const categorySchema = new mongoose.Schema(
       trim: true,
       maxlength: [500, 'Description cannot exceed 500 characters']
     },
-    earnUpto: {
-      type: String,
-    },
     icon: {
       type: String,
       trim: true,

@@ -18,7 +18,6 @@ const {
  *       required:
  *         - name
  *         - description
- *         - earnUpto
  *       properties:
  *         _id:
  *           type: string
@@ -31,10 +30,6 @@ const {
  *           type: string
  *           description: Category description
  *           example: Digital marketing services
- *         earnUpto:
- *           type: string
- *           description: Maximum earning potential
- *           example: ₹5000 per month
  *         icon:
  *           type: string
  *           description: Icon name (fallback)
@@ -234,7 +229,6 @@ router.get('/:id', getCategoryById);
  *             required:
  *               - name
  *               - description
- *               - earnUpto
  *             properties:
  *               name:
  *                 type: string
@@ -242,9 +236,6 @@ router.get('/:id', getCategoryById);
  *               description:
  *                 type: string
  *                 example: Digital marketing services
- *               earnUpto:
- *                 type: string
- *                 example: ₹5000 per month
  *               icon:
  *                 type: string
  *                 example: marketing
@@ -304,9 +295,6 @@ router.post('/', createCategory);
  *               description:
  *                 type: string
  *                 example: Updated digital marketing services
- *               earnUpto:
- *                 type: string
- *                 example: ₹6000 per month
  *               icon:
  *                 type: string
  *                 example: marketing

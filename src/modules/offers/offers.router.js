@@ -36,9 +36,6 @@ const {
  *         description:
  *           type: string
  *           description: Offer description
- *         clientName:
- *           type: string
- *           description: Client name
  *         latestStage:
  *           type: string
  *           enum: [Upload, Number, Pending, Completed]
@@ -57,10 +54,6 @@ const {
  *         commission2Comment:
  *           type: string
  *           description: Comment for commission 2
- *         status:
- *           type: string
- *           enum: [Active, Hold, Pending, Completed, Rejected]
- *           description: Offer status
  *         link:
  *           type: string
  *           description: Offer link
@@ -70,24 +63,18 @@ const {
  *         video:
  *           type: string
  *           description: Video filename or URL
+ *         videoLink:
+ *           type: string
+ *           description: Video link URL
+ *         termsAndConditions:
+ *           type: string
+ *           description: Terms and conditions
  *         isApproved:
  *           type: boolean
  *           description: Approval status
  *         leadId:
  *           type: string
  *           description: Lead ID
- *         customerContact:
- *           type: string
- *           description: Customer contact
- *         email:
- *           type: string
- *           description: Email address
- *         company:
- *           type: string
- *           description: Company name
- *         budget:
- *           type: number
- *           description: Budget amount
  *         createdAt:
  *           type: string
  *           format: date-time
@@ -108,7 +95,7 @@ const {
  *         schema:
  *           type: string
  *           enum: [all, Active, Hold, Pending, Completed, Rejected]
- *         description: Filter by status
+ *         description: Filter by status (deprecated - kept for backward compatibility)
  *       - in: query
  *         name: category
  *         schema:
@@ -123,7 +110,7 @@ const {
  *         name: search
  *         schema:
  *           type: string
- *         description: Search in name, description, leadId, company
+ *         description: Search in name, description, leadId
  *       - in: query
  *         name: page
  *         schema:

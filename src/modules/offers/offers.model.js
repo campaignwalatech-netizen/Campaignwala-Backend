@@ -18,10 +18,6 @@ const offerSchema = new mongoose.Schema(
       trim: true,
       maxlength: [1000, 'Description cannot exceed 1000 characters']
     },
-    clientName: {
-      type: String,
-      trim: true
-    },
     latestStage: {
       type: String,
       enum: ['Upload', 'Number', 'Pending', 'Completed'],
@@ -43,11 +39,6 @@ const offerSchema = new mongoose.Schema(
       type: String,
       trim: true
     },
-    status: {
-      type: String,
-      enum: ['Active', 'Hold', 'Pending', 'Completed', 'Rejected'],
-      default: 'Pending'
-    },
     link: {
       type: String,
       trim: true
@@ -61,6 +52,16 @@ const offerSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: ''
+    },
+    videoLink: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    termsAndConditions: {
+      type: String,
+      trim: true,
+      maxlength: [5000, 'Terms and conditions cannot exceed 5000 characters']
     },
     // Approval fields
     isApproved: {
@@ -82,23 +83,6 @@ const offerSchema = new mongoose.Schema(
     leadId: {
       type: String,
       trim: true
-    },
-    customerContact: {
-      type: String,
-      trim: true
-    },
-    email: {
-      type: String,
-      trim: true,
-      lowercase: true
-    },
-    company: {
-      type: String,
-      trim: true
-    },
-    budget: {
-      type: Number,
-      min: [0, 'Budget cannot be negative']
     }
   },
   {
@@ -118,12 +102,6 @@ offerSchema.index({ name: 'text', description: 'text' }); // Text search
 // Virtual for formatted date
 offerSchema.virtual('formattedDate').get(function() {
   return this.createdAt.toLocaleDateString('en-IN');
-});
-
-// Virtual for formatted budget
-offerSchema.virtual('formattedBudget').get(function() {
-  if (!this.budget) return '';
-  return `₹${this.budget.toLocaleString('en-IN')}`;
 });
 
 const Offer = mongoose.model('Offer', offerSchema);

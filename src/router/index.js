@@ -3,6 +3,8 @@ const router = express.Router();
 
 // Import route modules
 const userRoutes = require('../modules/users/user.router');
+const categoryRoutes = require('../modules/categories/categories.router');
+const offerRoutes = require('../modules/offers/offers.router');
 
 // Health check for API
 router.get('/health', (req, res) => {
@@ -16,5 +18,7 @@ router.get('/health', (req, res) => {
 
 // Mount route modules
 router.use('/users', userRoutes);
+router.use('/categories', categoryRoutes);
+router.use('/offers', offerRoutes);
 
 module.exports = router;

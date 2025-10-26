@@ -12,6 +12,7 @@ const {
     getUserById,
     updateUserRole,
     toggleUserStatus,
+    markUserAsEx,
     deleteUser,
     getDashboardStats,
     forgotPassword,
@@ -842,5 +843,182 @@ router.post('/forgot-password', forgotPassword);
  *               $ref: '#/components/schemas/Error'
  */
 router.post('/reset-password', resetPassword);
+
+/**
+ * @swagger
+ * /api/users:
+ *   get:
+ *     summary: Get all users (Admin only)
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: isVerified
+ *         schema:
+ *           type: boolean
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Users retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+router.get('/', getAllUsers);
+
+/**
+ * @swagger
+ * /api/users/{userId}:
+ *   get:
+ *     summary: Get user by ID (Admin only)
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+router.get('/:userId', getUserById);
+
+/**
+ * @swagger
+ * /api/users/{userId}/role:
+ *   put:
+ *     summary: Update user role (Admin only)
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - role
+ *             properties:
+ *               role:
+ *                 type: string
+ *                 enum: [user, admin]
+ *     responses:
+ *       200:
+ *         description: Role updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+router.put('/:userId/role', updateUserRole);
+
+/**
+ * @swagger
+ * /api/users/{userId}/toggle-status:
+ *   put:
+ *     summary: Toggle user active status (Admin only)
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Status toggled successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+router.put('/:userId/toggle-status', toggleUserStatus);
+
+/**
+ * @swagger
+ * /api/users/{userId}/mark-ex:
+ *   put:
+ *     summary: Mark user as Ex (Admin only)
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User marked as Ex successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+router.put('/:userId/mark-ex', markUserAsEx);
+
+/**
+ * @swagger
+ * /api/users/{userId}:
+ *   delete:
+ *     summary: Delete user (Admin only)
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+router.delete('/:userId', deleteUser);
+
+/**
+ * @swagger
+ * /api/users/stats/dashboard:
+ *   get:
+ *     summary: Get dashboard statistics (Admin only)
+ *     tags: [Admin]
+ *     responses:
+ *       200:
+ *         description: Dashboard stats retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+router.get('/stats/dashboard', getDashboardStats);
 
 module.exports = router;

@@ -403,12 +403,12 @@ const getOffersByCategory = async (req, res) => {
     console.log('🔍 Searching offers for category:', category.name);
 
     // Find offers by category name (since offers store category as String)
+    // Return ALL fields, not just limited selection
     const offers = await Offer.find({ category: category.name })
-      .select('_id name leadId offersId')
       .lean();
 
     console.log(`✅ Found ${offers.length} offers for category: ${category.name}`);
-    console.log('Offers:', offers);
+    console.log('📦 Sample offer fields:', offers[0]); // Debug: show what fields are returned
 
     res.status(200).json({
       success: true,

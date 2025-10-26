@@ -608,6 +608,39 @@ const toggleUserStatus = async (req, res) => {
     }
 };
 
+// Admin: Mark user as Ex
+const markUserAsEx = async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        // Mark user as Ex (inactive + isEx flag)
+        user.isActive = false;
+        user.isEx = true;
+        await user.save();
+
+        res.json({
+            success: true,
+            message: 'User marked as Ex successfully',
+            data: { user: user.toJSON() }
+        });
+
+    } catch (error) {
+        console.error('Mark user as Ex error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to mark user as Ex'
+        });
+    }
+};
+
 // Admin: Delete user
 const deleteUser = async (req, res) => {
     try {
@@ -818,6 +851,7 @@ module.exports = {
     getUserById,
     updateUserRole,
     toggleUserStatus,
+    markUserAsEx,
     deleteUser,
     getDashboardStats,
     forgotPassword,

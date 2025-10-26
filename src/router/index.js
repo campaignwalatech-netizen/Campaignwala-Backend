@@ -5,6 +5,7 @@ const router = express.Router();
 const userRoutes = require('../modules/users/user.router');
 const categoryRoutes = require('../modules/categories/categories.router');
 const offerRoutes = require('../modules/offers/offers.router');
+const slideRoutes = require('../modules/slides/slides.router');
 
 // Health check for API
 router.get('/health', (req, res) => {
@@ -20,5 +21,6 @@ router.get('/health', (req, res) => {
 router.use('/users', userRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/offers', offerRoutes);
+router.use('/slides', slideRoutes);
 
 module.exports = router;

@@ -9,7 +9,8 @@ const {
   approveOffer,
   rejectOffer,
   getOfferStats,
-  bulkUploadOffers
+  bulkUploadOffers,
+  getOffersByCategory
 } = require('./offers.controller');
 
 /**
@@ -75,6 +76,11 @@ const {
  *         leadId:
  *           type: string
  *           description: Lead ID
+ *         offersId:
+ *           type: string
+ *           description: Auto-generated unique Offers ID
+ *           example: OFF-L5X8K9M-ABC12
+ *           readOnly: true
  *         createdAt:
  *           type: string
  *           format: date-time
@@ -170,6 +176,54 @@ router.get('/stats', getOfferStats);
 
 /**
  * @swagger
+ * /api/offers/category/{categoryId}:
+ *   get:
+ *     summary: Get offers by category
+ *     tags: [Offers]
+ *     description: Retrieves all offers for a specific category with their IDs
+ *     parameters:
+ *       - in: path
+ *         name: categoryId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Category ID
+ *     responses:
+ *       200:
+ *         description: Offers retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Offers retrieved successfully
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                         description: Offer MongoDB ID
+ *                       name:
+ *                         type: string
+ *                         description: Offer name
+ *                       leadId:
+ *                         type: string
+ *                         description: Lead ID
+ *                       offersId:
+ *                         type: string
+ *                         description: Auto-generated unique Offers ID
+ */
+router.get('/category/:categoryId', getOffersByCategory);
+
+/**
+ * @swagger
  * /api/offers/bulk-upload:
  *   post:
  *     summary: Bulk upload offers
@@ -217,6 +271,7 @@ router.get('/:id', getOfferById);
  *   post:
  *     summary: Create new offer
  *     tags: [Offers]
+ *     description: Creates a new offer with auto-generated unique offersId
  *     requestBody:
  *       required: true
  *       content:
@@ -225,7 +280,20 @@ router.get('/:id', getOfferById);
  *             $ref: '#/components/schemas/Offer'
  *     responses:
  *       201:
- *         description: Offer created successfully
+ *         description: Offer created successfully with auto-generated offersId
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Offer created successfully
+ *                 data:
+ *                   $ref: '#/components/schemas/Offer'
  */
 router.post('/', createOffer);
 

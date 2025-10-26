@@ -381,6 +381,50 @@ const bulkUploadOffers = async (req, res) => {
   }
 };
 
+/**
+ * Get offers by category
+ */
+const getOffersByCategory = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+
+    // First, get the category name from Category model
+    const Category = require('../categories/categories.model');
+    const category = await Category.findById(categoryId).select('name');
+    
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        message: 'Category not found',
+        data: []
+      });
+    }
+
+    console.log('🔍 Searching offers for category:', category.name);
+
+    // Find offers by category name (since offers store category as String)
+    const offers = await Offer.find({ category: category.name })
+      .select('_id name leadId offersId')
+      .lean();
+
+    console.log(`✅ Found ${offers.length} offers for category: ${category.name}`);
+    console.log('Offers:', offers);
+
+    res.status(200).json({
+      success: true,
+      message: 'Offers retrieved successfully',
+      data: offers
+    });
+  } catch (error) {
+    console.error('❌ Error fetching offers by category:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch offers',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getAllOffers,
   getOfferById,
@@ -390,5 +434,6 @@ module.exports = {
   approveOffer,
   rejectOffer,
   getOfferStats,
-  bulkUploadOffers
+  bulkUploadOffers,
+  getOffersByCategory
 };

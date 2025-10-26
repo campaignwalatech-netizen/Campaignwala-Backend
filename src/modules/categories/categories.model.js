@@ -51,7 +51,7 @@ categorySchema.index({ createdAt: -1 });
 
 // Virtual for formatted creation date
 categorySchema.virtual('formattedDate').get(function() {
-  return this.createdAt.toLocaleDateString('en-IN');
+  return this.createdAt ? this.createdAt.toLocaleDateString('en-IN') : 'N/A';
 });
 
 const Category = mongoose.model('Category', categorySchema);

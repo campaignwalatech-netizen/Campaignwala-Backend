@@ -839,6 +839,367 @@ const resetPassword = async (req, res) => {
     }
 };
 
+// Update KYC Details (Personal + Documents + Bank)
+const updateKYCDetails = async (req, res) => {
+    try {
+        console.log('🔵 ===== UPDATE KYC DETAILS CALLED =====');
+        console.log('🔵 User object:', req.user);
+        console.log('🔵 User ID from token:', req.user?._id);
+        console.log('🔵 Request body:', JSON.stringify(req.body, null, 2));
+        
+        const userId = req.user._id;
+        
+        // Extract data from nested objects or direct properties
+        const personalDetails = req.body.personalDetails || {};
+        const kycDocuments = req.body.kycDocuments || {};
+        const bankDetails = req.body.bankDetails || {};
+        
+        // Personal Details - can come from personalDetails object or directly
+        const firstName = req.body.firstName || personalDetails.firstName;
+        const lastName = req.body.lastName || personalDetails.lastName;
+        const dob = req.body.dob || personalDetails.dob;
+        const gender = req.body.gender || personalDetails.gender;
+        const address1 = req.body.address1 || personalDetails.address1;
+        const city = req.body.city || personalDetails.city;
+        const state = req.body.state || personalDetails.state;
+        const zip = req.body.zip || personalDetails.zip;
+        const country = req.body.country || personalDetails.country;
+        
+        // KYC Documents - can come from kycDocuments object or directly
+        const panNumber = req.body.panNumber || kycDocuments.panNumber;
+        const aadhaarNumber = req.body.aadhaarNumber || kycDocuments.aadhaarNumber;
+        const panImage = req.body.panImage || kycDocuments.panImage;
+        const aadhaarImage = req.body.aadhaarImage || kycDocuments.aadhaarImage;
+        
+        // Bank Details - can come from bankDetails object or directly
+        const bankName = req.body.bankName || bankDetails.bankName;
+        const accountHolderName = req.body.accountHolderName || bankDetails.accountHolderName;
+        const accountNumber = req.body.accountNumber || bankDetails.accountNumber;
+        const ifscCode = req.body.ifscCode || bankDetails.ifscCode;
+        const branchAddress = req.body.branchAddress || bankDetails.branchAddress;
+        const upiId = req.body.upiId || bankDetails.upiId;
+        
+        console.log('🟡 Extracted Bank Details:', { bankName, accountHolderName, accountNumber, ifscCode, branchAddress, upiId });
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        // Update Personal Details
+        if (firstName !== undefined) user.firstName = firstName;
+        if (lastName !== undefined) user.lastName = lastName;
+        if (dob !== undefined) user.dob = dob;
+        if (gender !== undefined) user.gender = gender;
+        if (address1 !== undefined) user.address1 = address1;
+        if (city !== undefined) user.city = city;
+        if (state !== undefined) user.state = state;
+        if (zip !== undefined) user.zip = zip;
+        if (country !== undefined) user.country = country;
+
+        // Update KYC Documents
+        if (panNumber !== undefined) user.kycDetails.panNumber = panNumber;
+        if (aadhaarNumber !== undefined) user.kycDetails.aadhaarNumber = aadhaarNumber;
+        if (panImage !== undefined) user.kycDetails.panImage = panImage;
+        if (aadhaarImage !== undefined) user.kycDetails.aadhaarImage = aadhaarImage;
+
+        // Update Bank Details
+        if (bankName !== undefined) user.bankDetails.bankName = bankName;
+        if (accountHolderName !== undefined) user.bankDetails.accountHolderName = accountHolderName;
+        if (accountNumber !== undefined) user.bankDetails.accountNumber = accountNumber;
+        if (ifscCode !== undefined) user.bankDetails.ifscCode = ifscCode;
+        if (branchAddress !== undefined) user.bankDetails.branchAddress = branchAddress;
+        if (upiId !== undefined) user.bankDetails.upiId = upiId;
+
+        // Check if this is a full KYC submission (has all required fields)
+        const hasAllRequiredFields = panNumber && aadhaarNumber && accountNumber && firstName && lastName;
+        console.log('🔵 Has all required fields?', hasAllRequiredFields);
+        console.log('🔵 Current KYC Status:', user.kycDetails.kycStatus);
+        
+        // If this is a full submission and status is not already approved, set to pending
+        if (hasAllRequiredFields && user.kycDetails.kycStatus !== 'approved') {
+            console.log('🟢 Setting KYC status to PENDING');
+            user.kycDetails.kycStatus = 'pending';
+            user.kycDetails.kycSubmittedAt = new Date();
+            // Clear rejection reason when resubmitting
+            user.kycDetails.kycRejectionReason = '';
+            user.kycDetails.kycRejectedAt = null;
+        }
+
+        await user.save();
+        console.log('🟢 User saved successfully. Final KYC Status:', user.kycDetails.kycStatus);
+
+        res.json({
+            success: true,
+            message: 'KYC details updated successfully',
+            data: user
+        });
+
+    } catch (error) {
+        console.error('Update KYC details error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update KYC details',
+            error: error.message
+        });
+    }
+};
+
+// Get KYC Details
+const getKYCDetails = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const user = await User.findById(userId).select('-password -otpAttempts -lastOtpSent');
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'KYC details retrieved successfully',
+            data: {
+                // Personal Details
+                firstName: user.firstName || '',
+                lastName: user.lastName || '',
+                name: user.name || '',
+                email: user.email || '',
+                phoneNumber: user.phoneNumber || '',
+                dob: user.dob || '',
+                gender: user.gender || '',
+                address1: user.address1 || '',
+                city: user.city || '',
+                state: user.state || '',
+                zip: user.zip || '',
+                country: user.country || 'India',
+                // KYC Documents
+                kycDetails: {
+                    panNumber: user.kycDetails?.panNumber || '',
+                    aadhaarNumber: user.kycDetails?.aadhaarNumber || '',
+                    panImage: user.kycDetails?.panImage || '',
+                    aadhaarImage: user.kycDetails?.aadhaarImage || '',
+                    kycStatus: user.kycDetails?.kycStatus || 'not_submitted',
+                    kycSubmittedAt: user.kycDetails?.kycSubmittedAt || null,
+                    kycApprovedAt: user.kycDetails?.kycApprovedAt || null,
+                    kycRejectedAt: user.kycDetails?.kycRejectedAt || null,
+                    kycRejectionReason: user.kycDetails?.kycRejectionReason || ''
+                },
+                // Bank Details
+                bankDetails: {
+                    bankName: user.bankDetails?.bankName || '',
+                    accountHolderName: user.bankDetails?.accountHolderName || '',
+                    accountNumber: user.bankDetails?.accountNumber || '',
+                    ifscCode: user.bankDetails?.ifscCode || '',
+                    branchAddress: user.bankDetails?.branchAddress || '',
+                    upiId: user.bankDetails?.upiId || ''
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Get KYC details error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get KYC details',
+            error: error.message
+        });
+    }
+};
+
+// Admin: Get all pending KYC requests
+const getPendingKYCRequests = async (req, res) => {
+    try {
+        const { 
+            page = 1, 
+            limit = 100,
+            search = '',
+            sortBy = 'kycDetails.kycSubmittedAt',
+            order = 'desc'
+        } = req.query;
+
+        // Build filter
+        const filter = {
+            'kycDetails.kycStatus': 'pending'
+        };
+
+        if (search) {
+            filter.$or = [
+                { name: { $regex: search, $options: 'i' } },
+                { email: { $regex: search, $options: 'i' } },
+                { phoneNumber: { $regex: search, $options: 'i' } },
+                { firstName: { $regex: search, $options: 'i' } },
+                { lastName: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        const skip = (page - 1) * limit;
+        const sortOrder = order === 'desc' ? -1 : 1;
+
+        const users = await User.find(filter)
+            .select('-password -otpAttempts -lastOtpSent')
+            .sort({ [sortBy]: sortOrder })
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        const total = await User.countDocuments(filter);
+
+        res.json({
+            success: true,
+            message: 'Pending KYC requests retrieved successfully',
+            data: {
+                users,
+                pagination: {
+                    total,
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    totalPages: Math.ceil(total / limit)
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Get pending KYC requests error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get pending KYC requests',
+            error: error.message
+        });
+    }
+};
+
+// Admin: Approve KYC
+const approveKYC = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { remarks } = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        if (user.kycDetails.kycStatus !== 'pending') {
+            return res.status(400).json({
+                success: false,
+                message: 'KYC is not in pending status'
+            });
+        }
+
+        user.kycDetails.kycStatus = 'approved';
+        user.kycDetails.kycApprovedAt = new Date();
+        user.kycDetails.kycRejectionReason = '';
+        if (remarks) {
+            user.kycDetails.remarks = remarks;
+        }
+
+        await user.save();
+
+        res.json({
+            success: true,
+            message: 'KYC approved successfully',
+            data: user
+        });
+
+    } catch (error) {
+        console.error('Approve KYC error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to approve KYC',
+            error: error.message
+        });
+    }
+};
+
+// Admin: Reject KYC
+const rejectKYC = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { reason } = req.body;
+
+        if (!reason || reason.trim() === '') {
+            return res.status(400).json({
+                success: false,
+                message: 'Rejection reason is required'
+            });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        if (user.kycDetails.kycStatus !== 'pending') {
+            return res.status(400).json({
+                success: false,
+                message: 'KYC is not in pending status'
+            });
+        }
+
+        user.kycDetails.kycStatus = 'rejected';
+        user.kycDetails.kycRejectedAt = new Date();
+        user.kycDetails.kycRejectionReason = reason;
+
+        await user.save();
+
+        res.json({
+            success: true,
+            message: 'KYC rejected successfully',
+            data: user
+        });
+
+    } catch (error) {
+        console.error('Reject KYC error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to reject KYC',
+            error: error.message
+        });
+    }
+};
+
+// Admin: Get KYC details by user ID
+const getKYCDetailsByUserId = async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        const user = await User.findById(userId).select('-password -otpAttempts -lastOtpSent');
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'KYC details retrieved successfully',
+            data: user
+        });
+
+    } catch (error) {
+        console.error('Get KYC details by user ID error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get KYC details',
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     sendOTP,
     register,
@@ -855,5 +1216,11 @@ module.exports = {
     deleteUser,
     getDashboardStats,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    updateKYCDetails,
+    getKYCDetails,
+    getPendingKYCRequests,
+    approveKYC,
+    rejectKYC,
+    getKYCDetailsByUserId
 };

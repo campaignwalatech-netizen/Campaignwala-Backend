@@ -53,6 +53,125 @@ const userSchema = new mongoose.Schema({
     isEx: {
         type: Boolean,
         default: false
+    },
+    // Personal Details
+    firstName: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    lastName: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    dob: {
+        type: Date
+    },
+    gender: {
+        type: String,
+        enum: ['', 'Male', 'Female', 'Other'],
+        default: ''
+    },
+    address1: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    city: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    state: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    zip: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    country: {
+        type: String,
+        trim: true,
+        default: 'India'
+    },
+    // KYC Documents
+    kycDetails: {
+        panNumber: {
+            type: String,
+            trim: true,
+            uppercase: true,
+            default: ''
+        },
+        aadhaarNumber: {
+            type: String,
+            trim: true,
+            default: ''
+        },
+        panImage: {
+            type: String,
+            default: ''
+        },
+        aadhaarImage: {
+            type: String,
+            default: ''
+        },
+        kycStatus: {
+            type: String,
+            enum: ['pending', 'approved', 'rejected', 'not_submitted'],
+            default: 'not_submitted'
+        },
+        kycSubmittedAt: {
+            type: Date
+        },
+        kycApprovedAt: {
+            type: Date
+        },
+        kycRejectedAt: {
+            type: Date
+        },
+        kycRejectionReason: {
+            type: String,
+            trim: true,
+            default: ''
+        }
+    },
+    // Bank Details
+    bankDetails: {
+        bankName: {
+            type: String,
+            trim: true,
+            default: ''
+        },
+        accountHolderName: {
+            type: String,
+            trim: true,
+            default: ''
+        },
+        accountNumber: {
+            type: String,
+            trim: true,
+            default: ''
+        },
+        ifscCode: {
+            type: String,
+            trim: true,
+            uppercase: true,
+            default: ''
+        },
+        branchAddress: {
+            type: String,
+            trim: true,
+            default: ''
+        },
+        upiId: {
+            type: String,
+            trim: true,
+            default: ''
+        }
     }
 }, {
     timestamps: true

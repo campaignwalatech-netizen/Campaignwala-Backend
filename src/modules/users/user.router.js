@@ -16,7 +16,13 @@ const {
     deleteUser,
     getDashboardStats,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    updateKYCDetails,
+    getKYCDetails,
+    getPendingKYCRequests,
+    approveKYC,
+    rejectKYC,
+    getKYCDetailsByUserId
 } = require('./user.controller');
 
 const {
@@ -882,6 +888,223 @@ router.post('/reset-password', resetPassword);
  *               $ref: '#/components/schemas/ApiResponse'
  */
 router.get('/', getAllUsers);
+
+// ============== KYC Routes (MUST be before /:userId route) ==============
+
+/**
+ * @swagger
+ * /api/users/kyc:
+ *   get:
+ *     summary: Get user's KYC details
+ *     tags: [User Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: KYC details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+router.get('/kyc', authenticateToken, getKYCDetails);
+
+/**
+ * @swagger
+ * /api/users/kyc:
+ *   put:
+ *     summary: Update KYC details (Personal, Documents, Bank)
+ *     tags: [User Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               dob:
+ *                 type: string
+ *                 format: date
+ *               gender:
+ *                 type: string
+ *                 enum: ['Male', 'Female', 'Other']
+ *               address1:
+ *                 type: string
+ *               city:
+ *                 type: string
+ *               state:
+ *                 type: string
+ *               zip:
+ *                 type: string
+ *               country:
+ *                 type: string
+ *               panNumber:
+ *                 type: string
+ *               aadhaarNumber:
+ *                 type: string
+ *               panImage:
+ *                 type: string
+ *               aadhaarImage:
+ *                 type: string
+ *               bankName:
+ *                 type: string
+ *               accountHolderName:
+ *                 type: string
+ *               accountNumber:
+ *                 type: string
+ *               ifscCode:
+ *                 type: string
+ *               branchAddress:
+ *                 type: string
+ *               upiId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: KYC details updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+router.put('/kyc', authenticateToken, updateKYCDetails);
+
+/**
+ * @swagger
+ * /api/users/admin/kyc/pending:
+ *   get:
+ *     summary: Get all pending KYC requests (Admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 100
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           default: kycDetails.kycSubmittedAt
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *     responses:
+ *       200:
+ *         description: Pending KYC requests retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+router.get('/admin/kyc/pending', authenticateToken, requireAdmin, getPendingKYCRequests);
+
+/**
+ * @swagger
+ * /api/users/admin/kyc/{userId}:
+ *   get:
+ *     summary: Get user's KYC details by user ID (Admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: KYC details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+router.get('/admin/kyc/:userId', authenticateToken, requireAdmin, getKYCDetailsByUserId);
+
+/**
+ * @swagger
+ * /api/users/admin/kyc/{userId}/approve:
+ *   put:
+ *     summary: Approve user's KYC (Admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               remarks:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: KYC approved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+router.put('/admin/kyc/:userId/approve', authenticateToken, requireAdmin, approveKYC);
+
+/**
+ * @swagger
+ * /api/users/admin/kyc/{userId}/reject:
+ *   put:
+ *     summary: Reject user's KYC (Admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reason
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 description: Reason for rejection
+ *     responses:
+ *       200:
+ *         description: KYC rejected successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponse'
+ */
+router.put('/admin/kyc/:userId/reject', authenticateToken, requireAdmin, rejectKYC);
 
 /**
  * @swagger

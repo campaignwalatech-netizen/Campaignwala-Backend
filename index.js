@@ -20,6 +20,17 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Request logging middleware
+app.use((req, res, next) => {
+    const timestamp = new Date().toISOString();
+    console.log('🟢 ===== INCOMING REQUEST =====');
+    console.log(`🟢 [${timestamp}] ${req.method} ${req.path}`);
+    console.log('🟢 Full URL:', req.originalUrl);
+    console.log('🟢 Headers:', req.headers.authorization ? '✅ Has Token' : '❌ No Token');
+    console.log('🟢 ==============================');
+    next();
+});
+
 // Swagger Documentation
 swaggerSetup(app);
 

@@ -8,6 +8,7 @@ const offerRoutes = require('../modules/offers/offers.router');
 const slideRoutes = require('../modules/slides/slides.router');
 const leadRoutes = require('../modules/leads/leads.router');
 const walletRoutes = require('../modules/wallet/wallet.router');
+const withdrawalRoutes = require('../modules/withdrawal/withdrawal.router');
 
 // Health check for API
 router.get('/health', (req, res) => {
@@ -26,5 +27,6 @@ router.use('/offers', offerRoutes);
 router.use('/slides', slideRoutes);
 router.use('/leads', leadRoutes);
 router.use('/wallet', walletRoutes);
+router.use('/withdrawals', withdrawalRoutes);
 
 module.exports = router;

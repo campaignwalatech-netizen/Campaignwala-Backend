@@ -9,6 +9,9 @@ const slideRoutes = require('../modules/slides/slides.router');
 const leadRoutes = require('../modules/leads/leads.router');
 const walletRoutes = require('../modules/wallet/wallet.router');
 const withdrawalRoutes = require('../modules/withdrawal/withdrawal.router');
+const notificationRoutes = require('../modules/notifications/notification.router');
+const queryRoutes = require('../modules/queries/query.router');
+const adminLogRoutes = require('../modules/adminlogs/adminlog.router');
 
 // Health check for API
 router.get('/health', (req, res) => {
@@ -28,5 +31,8 @@ router.use('/slides', slideRoutes);
 router.use('/leads', leadRoutes);
 router.use('/wallet', walletRoutes);
 router.use('/withdrawals', withdrawalRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/queries', queryRoutes);
+router.use('/adminlogs', adminLogRoutes);
 
 module.exports = router;

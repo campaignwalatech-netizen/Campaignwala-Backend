@@ -1,0 +1,43 @@
+# Node modules
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# Editor directories and files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Dependency directories
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Cache
+.cache/
+.tmp/
+coverage/
+
+# System files
+*.swp
+*.swo
+
+# Optional: Vite specific cache
+.vite/
+
+# Optional: Tailwind and PostCSS
+*.css.map

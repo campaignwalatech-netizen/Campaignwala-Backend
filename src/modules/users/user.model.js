@@ -46,6 +46,12 @@ const userSchema = new mongoose.Schema({
     lastOtpSent: {
         type: Date
     },
+    emailOtp: {
+        type: String
+    },
+    emailOtpExpires: {
+        type: Date
+    },
     isActive: {
         type: Boolean,
         default: true
@@ -202,12 +208,12 @@ userSchema.methods.canSendOtp = function () {
     const now = new Date();
     const lastOtp = this.lastOtpSent;
 
-    // Reset attempts if more than 1 hour passed
-    if (lastOtp && (now - lastOtp) > 60 * 60 * 1000) {
+    // Reset attempts if more than 15 minutes passed (development mode)
+    if (lastOtp && (now - lastOtp) > 15 * 60 * 1000) {
         this.otpAttempts = 0;
     }
 
-    return this.otpAttempts < 5; // Max 5 attempts per hour
+    return this.otpAttempts < 20; // Max 20 attempts per 15 minutes (development mode)
 };
 
 // Increment OTP attempts

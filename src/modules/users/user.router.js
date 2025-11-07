@@ -22,7 +22,9 @@ const {
     getPendingKYCRequests,
     approveKYC,
     rejectKYC,
-    getKYCDetailsByUserId
+    getKYCDetailsByUserId,
+    sendEmailOTP,
+    verifyEmailOTP
 } = require('./user.controller');
 
 const {
@@ -319,6 +321,10 @@ router.post('/verify-otp', verifyOTP);
  *               $ref: '#/components/schemas/Error'
  */
 router.get('/profile', authenticateToken, getProfile);
+
+// Email OTP routes for profile updates
+router.post('/send-email-otp', authenticateToken, sendEmailOTP);
+router.post('/verify-email-otp', authenticateToken, verifyEmailOTP);
 
 /**
  * @swagger

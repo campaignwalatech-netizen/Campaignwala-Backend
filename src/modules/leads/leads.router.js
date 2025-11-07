@@ -8,7 +8,9 @@ const {
   deleteLead,
   getLeadStats,
   approveLead,
-  rejectLead
+  rejectLead,
+  getLeadAnalytics,
+  getAllUsers
 } = require('./leads.controller');
 
 /**
@@ -188,6 +190,53 @@ router.get('/', getAllLeads);
  *                       type: number
  */
 router.get('/stats', getLeadStats);
+
+/**
+ * @swagger
+ * /api/leads/analytics:
+ *   get:
+ *     summary: Get lead analytics data
+ *     tags: [Leads]
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date for filtering
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date for filtering
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filter by category
+ *       - in: query
+ *         name: hrUserId
+ *         schema:
+ *           type: string
+ *         description: Filter by HR User ID
+ *     responses:
+ *       200:
+ *         description: Analytics data retrieved successfully
+ */
+router.get('/analytics', getLeadAnalytics);
+
+/**
+ * @swagger
+ * /api/leads/users:
+ *   get:
+ *     summary: Get all users for dropdown
+ *     tags: [Leads]
+ *     responses:
+ *       200:
+ *         description: Users retrieved successfully
+ */
+router.get('/users', getAllUsers);
 
 /**
  * @swagger

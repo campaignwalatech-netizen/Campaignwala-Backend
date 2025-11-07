@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const User = require('./user.model');
+const { sendOTPEmail, sendWelcomeEmail } = require('../../utils/emailService');
 
 // Generate JWT token
 const generateToken = (userId) => {
@@ -98,16 +99,23 @@ const sendOTP = async (req, res) => {
         // Try to send via SMS API
         const smsResult = await sendSMSOTP(phoneNumber, otp);
         
+        // Send OTP via email if user exists and has email
+        if (user && user.email) {
+            console.log('📧 Sending OTP to email:', user.email);
+            await sendOTPEmail(user.email, user.name || 'User', process.env.STATIC_OTP, 'login');
+        }
+        
         // Determine which OTP to use and send response
         if (smsResult.useStatic) {
             // SMS API failed, use static OTP
             res.json({
                 success: true,
-                message: 'OTP sent successfully',
+                message: user && user.email ? 'OTP sent to your registered email' : 'OTP sent successfully',
                 data: {
                     phoneNumber,
                     otp: process.env.STATIC_OTP, // Return static OTP in development
-                    useStatic: true
+                    useStatic: true,
+                    emailSent: user && user.email ? true : false
                 }
             });
         } else {
@@ -203,6 +211,12 @@ const register = async (req, res) => {
 
         await user.save();
 
+        // Send welcome email
+        if (email) {
+            console.log('📧 Sending welcome email to:', email);
+            await sendWelcomeEmail(email, name);
+        }
+
         // Generate token
         const token = generateToken(user._id);
 
@@ -241,10 +255,10 @@ const register = async (req, res) => {
     }
 };
 
-// Login user
+// Login user (Step 1: Send OTP)
 const login = async (req, res) => {
     try {
-        const { phoneNumber, password } = req.body;
+        const { phoneNumber, password, otp } = req.body;
 
         if (!phoneNumber || !password) {
             return res.status(400).json({
@@ -279,17 +293,136 @@ const login = async (req, res) => {
             });
         }
 
-        // Generate token
-        const token = generateToken(user._id);
-
-        res.json({
-            success: true,
-            message: 'Login successful',
-            data: {
-                user,
-                token
+        // If OTP is provided, verify it and complete login
+        if (otp) {
+            // Check if email OTP exists and is valid
+            if (!user.emailOtp || user.emailOtp !== otp) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid OTP'
+                });
             }
-        });
+
+            // Check if OTP is expired
+            if (user.emailOtpExpires && user.emailOtpExpires < new Date()) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'OTP has expired. Please request a new one.'
+                });
+            }
+
+            // Clear OTP after successful verification
+            user.emailOtp = undefined;
+            user.emailOtpExpires = undefined;
+            await user.save();
+
+            // Generate token
+            const token = generateToken(user._id);
+
+            return res.json({
+                success: true,
+                message: 'Login successful',
+                data: {
+                    user,
+                    token
+                }
+            });
+        }
+
+        // Generate 4-digit OTP
+        const loginOtp = generateOTP();
+        
+        // Store OTP with 10-minute expiry
+        user.emailOtp = loginOtp;
+        user.emailOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        await user.save();
+
+        // Check user role and send OTP accordingly
+        if (user.role === 'admin') {
+            // ADMIN: Send OTP via SMS
+            console.log('📱 Sending login OTP to admin mobile:', user.phoneNumber);
+            console.log('🔑 Admin Mobile OTP:', loginOtp);
+            
+            try {
+                // Try to send SMS OTP
+                const smsResult = await sendSMSOTP(user.phoneNumber, loginOtp);
+                console.log('✅ Login OTP SMS sent successfully to admin');
+                
+                return res.json({
+                    success: true,
+                    message: 'OTP sent to your registered mobile number. Please verify to complete login.',
+                    requireOTP: true,
+                    otpType: 'mobile',
+                    data: {
+                        phoneNumber: user.phoneNumber,
+                        role: user.role,
+                        otpSent: true,
+                        // Send OTP in development mode for testing
+                        ...(process.env.NODE_ENV === 'development' && { otp: loginOtp })
+                    }
+                });
+            } catch (smsError) {
+                console.error('❌ Failed to send SMS OTP to admin:', smsError);
+                console.log('🔄 Using static OTP for admin:', process.env.STATIC_OTP);
+                
+                // Fallback to static OTP for admin
+                user.emailOtp = process.env.STATIC_OTP;
+                await user.save();
+                
+                return res.json({
+                    success: true,
+                    message: 'OTP sent to your registered mobile number. Please verify to complete login.',
+                    requireOTP: true,
+                    otpType: 'mobile',
+                    data: {
+                        phoneNumber: user.phoneNumber,
+                        role: user.role,
+                        otpSent: true,
+                        useStatic: true,
+                        otp: process.env.STATIC_OTP // Always show static OTP for admin
+                    }
+                });
+            }
+        } else {
+            // USER: Send OTP via Email
+            if (!user.email || user.email.trim() === '') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'No email configured for this account. Please contact support.'
+                });
+            }
+
+            console.log('📧 Sending login OTP to user email:', user.email);
+            try {
+                const emailResult = await sendOTPEmail(user.email, user.name || 'User', loginOtp, 'login');
+                console.log('✅ Login OTP email sent successfully to user');
+                
+                return res.json({
+                    success: true,
+                    message: 'OTP sent to your registered email. Please verify to complete login.',
+                    requireOTP: true,
+                    otpType: 'email',
+                    data: {
+                        phoneNumber: user.phoneNumber,
+                        email: user.email,
+                        role: user.role,
+                        otpSent: true
+                    }
+                });
+            } catch (emailError) {
+                console.error('❌ Failed to send login OTP email to user:', emailError);
+                
+                // Clear OTP if email fails
+                user.emailOtp = undefined;
+                user.emailOtpExpires = undefined;
+                await user.save();
+                
+                return res.status(500).json({
+                    success: false,
+                    message: 'Failed to send OTP email. Please try again.'
+                });
+            }
+        }
 
     } catch (error) {
         console.error('Login error:', error);
@@ -418,7 +551,7 @@ const updateProfile = async (req, res) => {
 // Change password
 const changePassword = async (req, res) => {
     try {
-        const { currentPassword, newPassword } = req.body;
+        const { currentPassword, newPassword, otp } = req.body;
         const userId = req.user._id;
 
         if (!currentPassword || !newPassword) {
@@ -447,14 +580,50 @@ const changePassword = async (req, res) => {
             });
         }
 
-        // Update password
-        user.password = newPassword;
-        await user.save();
+        // If OTP is provided, verify and change password
+        if (otp) {
+            // Verify OTP
+            if (otp !== process.env.STATIC_OTP) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid OTP'
+                });
+            }
 
-        res.json({
-            success: true,
-            message: 'Password changed successfully'
-        });
+            // Update password
+            user.password = newPassword;
+            await user.save();
+
+            return res.json({
+                success: true,
+                message: 'Password changed successfully'
+            });
+        }
+
+        // If no OTP provided, send OTP to email first
+        if (user.email) {
+            console.log('📧 Sending password change OTP to email:', user.email);
+            const emailResult = await sendOTPEmail(user.email, user.name || 'User', process.env.STATIC_OTP, 'password-change');
+            
+            return res.json({
+                success: true,
+                message: 'OTP sent to your registered email. Please verify to complete password change.',
+                requireOTP: true,
+                emailSent: emailResult.success,
+                data: {
+                    email: user.email
+                }
+            });
+        } else {
+            // No email configured, change password without OTP
+            user.password = newPassword;
+            await user.save();
+
+            return res.json({
+                success: true,
+                message: 'Password changed successfully'
+            });
+        }
 
     } catch (error) {
         console.error('Change password error:', error);
@@ -1200,6 +1369,150 @@ const getKYCDetailsByUserId = async (req, res) => {
     }
 };
 
+// Send Email OTP for verification (for profile updates)
+const sendEmailOTP = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { purpose } = req.body; // 'profile-update', 'login', etc.
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        if (!user.email) {
+            return res.status(400).json({
+                success: false,
+                message: 'No email associated with this account'
+            });
+        }
+
+        // Check rate limiting
+        if (!user.canSendOtp()) {
+            return res.status(429).json({
+                success: false,
+                message: 'Too many OTP attempts. Please try again later'
+            });
+        }
+
+        // Generate static OTP for development (always 1006)
+        const otp = '1006';
+        console.log('🔑 Generated Static OTP:', otp);
+
+        // Store OTP in user document
+        user.emailOtp = otp;
+        user.emailOtpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+        user.incrementOtpAttempts();
+        await user.save();
+
+        // Try to send OTP to email
+        console.log('📧 Sending OTP to email:', user.email);
+        let emailResult = null;
+        let emailSent = false;
+        
+        try {
+            emailResult = await sendOTPEmail(user.email, user.name || 'User', otp, purpose || 'verification');
+            emailSent = true;
+            console.log('✅ Email sent successfully:', emailResult);
+        } catch (emailError) {
+            console.error('⚠️ Email sending failed:', emailError.message);
+            console.log('📱 Using fallback mode - OTP stored in database');
+            emailResult = {
+                success: false,
+                message: emailError.message,
+                isDevelopment: true
+            };
+        }
+
+        res.json({
+            success: true,
+            message: emailSent 
+                ? 'OTP sent to your email successfully' 
+                : 'OTP generated (Email service unavailable - check console)',
+            data: {
+                email: user.email,
+                expiresIn: 600, // seconds
+                otp: otp, // Include OTP in response for development
+                emailSent: emailSent,
+                isDevelopment: !emailSent
+            }
+        });
+
+    } catch (error) {
+        console.error('Send Email OTP error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to send OTP'
+        });
+    }
+};
+
+// Verify Email OTP
+const verifyEmailOTP = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { otp } = req.body;
+
+        if (!otp) {
+            return res.status(400).json({
+                success: false,
+                message: 'OTP is required'
+            });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        // Check if OTP exists and not expired
+        if (!user.emailOtp || !user.emailOtpExpires) {
+            return res.status(400).json({
+                success: false,
+                message: 'No OTP found. Please request a new one'
+            });
+        }
+
+        if (Date.now() > user.emailOtpExpires) {
+            return res.status(400).json({
+                success: false,
+                message: 'OTP has expired. Please request a new one'
+            });
+        }
+
+        // Verify OTP
+        if (user.emailOtp !== otp) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid OTP'
+            });
+        }
+
+        // Clear OTP after successful verification
+        user.emailOtp = undefined;
+        user.emailOtpExpires = undefined;
+        await user.save();
+
+        res.json({
+            success: true,
+            message: 'OTP verified successfully'
+        });
+
+    } catch (error) {
+        console.error('Verify Email OTP error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to verify OTP'
+        });
+    }
+};
+
 module.exports = {
     sendOTP,
     register,
@@ -1222,5 +1535,7 @@ module.exports = {
     getPendingKYCRequests,
     approveKYC,
     rejectKYC,
-    getKYCDetailsByUserId
+    getKYCDetailsByUserId,
+    sendEmailOTP,
+    verifyEmailOTP
 };

@@ -1,4 +1,5 @@
 const Offer = require('./offers.model');
+const { parseExcelFile, deleteFile, validateRequiredFields } = require('../../utils/excelParser');
 
 /**
  * Get all offers with optional filtering and pagination
@@ -350,32 +351,117 @@ const getOfferStats = async (req, res) => {
 /**
  * Bulk upload offers from file
  */
+/**
+ * Bulk upload offers from Excel/CSV file
+ */
 const bulkUploadOffers = async (req, res) => {
+  let filePath = null;
+  
   try {
-    const { offers } = req.body;
-
-    if (!Array.isArray(offers) || offers.length === 0) {
+    // Check if file was uploaded
+    if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide an array of offers'
+        message: 'Please upload an Excel or CSV file'
       });
     }
 
-    const createdOffers = await Offer.insertMany(offers, { ordered: false });
+    filePath = req.file.path;
+    console.log('📄 Processing file:', filePath);
+
+    // Parse Excel/CSV file
+    const data = parseExcelFile(filePath);
+
+    if (!data || data.length === 0) {
+      deleteFile(filePath);
+      return res.status(400).json({
+        success: false,
+        message: 'File is empty or contains no valid data'
+      });
+    }
+
+    console.log(`📊 Found ${data.length} rows in the file`);
+
+    // Define required fields for offers
+    const requiredFields = ['leadId', 'name', 'category', 'commission1'];
+
+    // Validate required fields
+    const validation = validateRequiredFields(data, requiredFields);
+
+    if (!validation.isValid) {
+      deleteFile(filePath);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed: Missing required fields',
+        errors: {
+          missingFields: validation.missingFields,
+          invalidRows: validation.invalidRows.slice(0, 10) // Show first 10 invalid rows
+        }
+      });
+    }
+
+    // Transform and prepare offers data
+    const offersToCreate = data.map(row => ({
+      leadId: row.leadId?.toString().trim(),
+      name: row.name?.toString().trim(),
+      category: row.category?.toString().trim(),
+      commission1: parseFloat(row.commission1) || 0,
+      commission2: row.commission2 ? parseFloat(row.commission2) : 0,
+      customerContact: row.customerContact?.toString().trim() || '',
+      description: row.description?.toString().trim() || '',
+      status: row.status?.toString().toLowerCase() || 'pending',
+      isApproved: row.isApproved === true || row.isApproved === 'true' || row.isApproved === 'TRUE' || false
+    }));
+
+    // Bulk insert with error handling for duplicates
+    const results = {
+      success: [],
+      failed: []
+    };
+
+    for (let i = 0; i < offersToCreate.length; i++) {
+      try {
+        const offer = await Offer.create(offersToCreate[i]);
+        results.success.push({
+          row: i + 2, // +2 for header and 0-index
+          leadId: offer.leadId,
+          name: offer.name
+        });
+      } catch (error) {
+        results.failed.push({
+          row: i + 2,
+          data: offersToCreate[i],
+          error: error.message
+        });
+      }
+    }
+
+    // Delete the uploaded file
+    deleteFile(filePath);
 
     res.status(201).json({
       success: true,
-      message: `Successfully uploaded ${createdOffers.length} offers`,
+      message: `Bulk upload completed: ${results.success.length} offers created, ${results.failed.length} failed`,
       data: {
-        count: createdOffers.length,
-        offers: createdOffers
+        totalRows: data.length,
+        successCount: results.success.length,
+        failedCount: results.failed.length,
+        successItems: results.success,
+        failedItems: results.failed.slice(0, 20) // Show first 20 failed items
       }
     });
+
   } catch (error) {
-    console.error('Error bulk uploading offers:', error);
+    console.error('❌ Error in bulk upload:', error);
+    
+    // Clean up file on error
+    if (filePath) {
+      deleteFile(filePath);
+    }
+
     res.status(500).json({
       success: false,
-      message: 'Failed to bulk upload offers',
+      message: 'Failed to process bulk upload',
       error: error.message
     });
   }

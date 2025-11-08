@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
-const axios = require('axios');
 const User = require('./user.model');
 const { sendOTPEmail, sendWelcomeEmail } = require('../../utils/emailService');
+const { parseExcelFile, deleteFile, validateRequiredFields } = require('../../utils/excelParser');
 
 // Generate JWT token
 const generateToken = (userId) => {
@@ -10,47 +10,12 @@ const generateToken = (userId) => {
     });
 };
 
-// Send OTP via third-party SMS API
-const sendSMSOTP = async (phoneNumber, otp) => {
-    try {
-        // Check if SMS API is configured
-        if (!process.env.SMS_API_KEY || !process.env.SMS_API_URL) {
-            console.log('SMS API not configured, using static OTP');
-            return { success: false, useStatic: true };
-        }
-
-        const message = `Your Campaign Waala OTP is: ${otp}. Valid for 10 minutes.`;
-        
-        // Example SMS API call - adjust based on your SMS provider
-        const response = await axios.post(process.env.SMS_API_URL, {
-            apiKey: process.env.SMS_API_KEY,
-            sender: process.env.SMS_SENDER_ID || 'CAMPWL',
-            number: phoneNumber,
-            message: message
-        }, {
-            timeout: 5000 // 5 second timeout
-        });
-
-        if (response.data && response.data.success) {
-            console.log('OTP sent successfully via SMS API');
-            return { success: true, useStatic: false };
-        } else {
-            console.log('SMS API failed, falling back to static OTP');
-            return { success: false, useStatic: true };
-        }
-    } catch (error) {
-        console.error('SMS API error:', error.message);
-        console.log('Falling back to static OTP');
-        return { success: false, useStatic: true };
-    }
-};
-
 // Generate random 4-digit OTP
 const generateOTP = () => {
     return Math.floor(1000 + Math.random() * 9000).toString();
 };
 
-// Send OTP (with third-party SMS API and static fallback)
+// Send OTP via Email
 const sendOTP = async (req, res) => {
     try {
         const { phoneNumber } = req.body;
@@ -78,58 +43,60 @@ const sendOTP = async (req, res) => {
 
         let user = await User.findOne({ phoneNumber });
 
-        if (user) {
-            console.log('📱 Existing user found');
-            // Check OTP rate limiting
-            if (!user.canSendOtp()) {
-                console.log('❌ Rate limit exceeded');
-                return res.status(429).json({
-                    success: false,
-                    message: 'Too many OTP attempts. Please try again later'
-                });
-            }
-
-            user.incrementOtpAttempts();
-            await user.save();
+        if (!user) {
+            console.log('❌ User not found');
+            return res.status(404).json({
+                success: false,
+                message: 'User not found. Please register first.'
+            });
         }
+
+        if (!user.email) {
+            console.log('❌ No email found for user');
+            return res.status(400).json({
+                success: false,
+                message: 'No email registered for this account. Please contact support.'
+            });
+        }
+
+        console.log('📱 Existing user found');
+        
+        // Check OTP rate limiting
+        if (!user.canSendOtp()) {
+            console.log('❌ Rate limit exceeded');
+            return res.status(429).json({
+                success: false,
+                message: 'Too many OTP attempts. Please try again later'
+            });
+        }
+
+        user.incrementOtpAttempts();
+        await user.save();
 
         // Generate OTP
         const otp = generateOTP();
         
-        // Try to send via SMS API
-        const smsResult = await sendSMSOTP(phoneNumber, otp);
-        
-        // Send OTP via email if user exists and has email
-        if (user && user.email) {
-            console.log('📧 Sending OTP to email:', user.email);
-            await sendOTPEmail(user.email, user.name || 'User', process.env.STATIC_OTP, 'login');
-        }
-        
-        // Determine which OTP to use and send response
-        if (smsResult.useStatic) {
-            // SMS API failed, use static OTP
+        // Send OTP via email
+        console.log('📧 Sending OTP to email:', user.email);
+        try {
+            await sendOTPEmail(user.email, user.name || 'User', otp, 'login');
+            
             res.json({
                 success: true,
-                message: user && user.email ? 'OTP sent to your registered email' : 'OTP sent successfully',
+                message: 'OTP sent to your registered email',
                 data: {
                     phoneNumber,
-                    otp: process.env.STATIC_OTP, // Return static OTP in development
-                    useStatic: true,
-                    emailSent: user && user.email ? true : false
+                    email: user.email,
+                    emailSent: true,
+                    // Only include OTP in development for testing
+                    ...(process.env.NODE_ENV === 'development' && { otp: otp })
                 }
             });
-        } else {
-            // SMS sent successfully via API
-            // In production, don't send OTP in response
-            res.json({
-                success: true,
-                message: 'OTP sent successfully to your phone',
-                data: {
-                    phoneNumber,
-                    // Only include OTP in development for testing
-                    ...(process.env.NODE_ENV === 'development' && { otp: otp }),
-                    useStatic: false
-                }
+        } catch (emailError) {
+            console.error('❌ Failed to send OTP email:', emailError);
+            res.status(500).json({
+                success: false,
+                message: 'Failed to send OTP email. Please try again.'
             });
         }
 
@@ -314,10 +281,21 @@ const login = async (req, res) => {
             // Clear OTP after successful verification
             user.emailOtp = undefined;
             user.emailOtpExpires = undefined;
-            await user.save();
 
             // Generate token
             const token = generateToken(user._id);
+
+            // Store session info for single device login
+            user.activeSession = token;
+            user.sessionDevice = req.headers['user-agent'] || 'Unknown Device';
+            user.sessionIP = req.ip || req.connection.remoteAddress || 'Unknown IP';
+            user.lastActivity = new Date();
+            
+            await user.save();
+
+            console.log('✅ New session created for user:', user.phoneNumber);
+            console.log('📱 Device:', user.sessionDevice);
+            console.log('🌐 IP:', user.sessionIP);
 
             return res.json({
                 success: true,
@@ -337,91 +315,45 @@ const login = async (req, res) => {
         user.emailOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
         await user.save();
 
-        // Check user role and send OTP accordingly
-        if (user.role === 'admin') {
-            // ADMIN: Send OTP via SMS
-            console.log('📱 Sending login OTP to admin mobile:', user.phoneNumber);
-            console.log('🔑 Admin Mobile OTP:', loginOtp);
-            
-            try {
-                // Try to send SMS OTP
-                const smsResult = await sendSMSOTP(user.phoneNumber, loginOtp);
-                console.log('✅ Login OTP SMS sent successfully to admin');
-                
-                return res.json({
-                    success: true,
-                    message: 'OTP sent to your registered mobile number. Please verify to complete login.',
-                    requireOTP: true,
-                    otpType: 'mobile',
-                    data: {
-                        phoneNumber: user.phoneNumber,
-                        role: user.role,
-                        otpSent: true,
-                        // Send OTP in development mode for testing
-                        ...(process.env.NODE_ENV === 'development' && { otp: loginOtp })
-                    }
-                });
-            } catch (smsError) {
-                console.error('❌ Failed to send SMS OTP to admin:', smsError);
-                console.log('🔄 Using static OTP for admin:', process.env.STATIC_OTP);
-                
-                // Fallback to static OTP for admin
-                user.emailOtp = process.env.STATIC_OTP;
-                await user.save();
-                
-                return res.json({
-                    success: true,
-                    message: 'OTP sent to your registered mobile number. Please verify to complete login.',
-                    requireOTP: true,
-                    otpType: 'mobile',
-                    data: {
-                        phoneNumber: user.phoneNumber,
-                        role: user.role,
-                        otpSent: true,
-                        useStatic: true,
-                        otp: process.env.STATIC_OTP // Always show static OTP for admin
-                    }
-                });
-            }
-        } else {
-            // USER: Send OTP via Email
-            if (!user.email || user.email.trim() === '') {
-                return res.status(400).json({
-                    success: false,
-                    message: 'No email configured for this account. Please contact support.'
-                });
-            }
+        // Send OTP via Email for all users (admin and regular users)
+        if (!user.email || user.email.trim() === '') {
+            return res.status(400).json({
+                success: false,
+                message: 'No email configured for this account. Please contact support.'
+            });
+        }
 
-            console.log('📧 Sending login OTP to user email:', user.email);
-            try {
-                const emailResult = await sendOTPEmail(user.email, user.name || 'User', loginOtp, 'login');
-                console.log('✅ Login OTP email sent successfully to user');
-                
-                return res.json({
-                    success: true,
-                    message: 'OTP sent to your registered email. Please verify to complete login.',
-                    requireOTP: true,
-                    otpType: 'email',
-                    data: {
-                        phoneNumber: user.phoneNumber,
-                        email: user.email,
-                        role: user.role,
-                        otpSent: true
-                    }
-                });
-            } catch (emailError) {
-                console.error('❌ Failed to send login OTP email to user:', emailError);
-                
-                // Clear OTP if email fails
-                user.emailOtp = undefined;
-                user.emailOtpExpires = undefined;
-                await user.save();
-                
-                return res.status(500).json({
-                    success: false,
-                    message: 'Failed to send OTP email. Please try again.'
-                });
-            }
+        console.log('📧 Sending login OTP to email:', user.email);
+        try {
+            await sendOTPEmail(user.email, user.name || 'User', loginOtp, 'login');
+            console.log('✅ Login OTP email sent successfully');
+            
+            return res.json({
+                success: true,
+                message: 'OTP sent to your registered email. Please verify to complete login.',
+                requireOTP: true,
+                otpType: 'email',
+                data: {
+                    phoneNumber: user.phoneNumber,
+                    email: user.email,
+                    role: user.role,
+                    otpSent: true,
+                    // Send OTP in development mode for testing
+                    ...(process.env.NODE_ENV === 'development' && { otp: loginOtp })
+                }
+            });
+        } catch (emailError) {
+            console.error('❌ Failed to send login OTP email:', emailError);
+            
+            // Clear OTP if email fails
+            user.emailOtp = undefined;
+            user.emailOtpExpires = undefined;
+            await user.save();
+            
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to send OTP email. Please try again.'
+            });
         }
 
     } catch (error) {
@@ -1513,10 +1445,171 @@ const verifyEmailOTP = async (req, res) => {
     }
 };
 
+// Logout user (Clear active session)
+const logout = async (req, res) => {
+    try {
+        const user = req.user;
+
+        // Clear session info
+        user.activeSession = null;
+        user.sessionDevice = null;
+        user.sessionIP = null;
+        user.lastActivity = null;
+        await user.save();
+
+        console.log('✅ User logged out successfully:', user.phoneNumber);
+
+        res.json({
+            success: true,
+            message: 'Logged out successfully'
+        });
+
+    } catch (error) {
+        console.error('Logout error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to logout'
+        });
+    }
+};
+
+/**
+ * Bulk upload users from Excel/CSV file
+ */
+const bulkUploadUsers = async (req, res) => {
+    let filePath = null;
+    
+    try {
+        // Check if file was uploaded
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please upload an Excel or CSV file'
+            });
+        }
+
+        filePath = req.file.path;
+        console.log('📄 Processing users file:', filePath);
+
+        // Parse Excel/CSV file
+        const data = parseExcelFile(filePath);
+
+        if (!data || data.length === 0) {
+            deleteFile(filePath);
+            return res.status(400).json({
+                success: false,
+                message: 'File is empty or contains no valid data'
+            });
+        }
+
+        console.log(`📊 Found ${data.length} users in the file`);
+
+        // Define required fields for users
+        const requiredFields = ['phoneNumber', 'name', 'email', 'password'];
+
+        // Validate required fields
+        const validation = validateRequiredFields(data, requiredFields);
+
+        if (!validation.isValid) {
+            deleteFile(filePath);
+            return res.status(400).json({
+                success: false,
+                message: 'Validation failed: Missing required fields',
+                errors: {
+                    missingFields: validation.missingFields,
+                    invalidRows: validation.invalidRows.slice(0, 10)
+                }
+            });
+        }
+
+        // Transform and prepare users data
+        const usersToCreate = data.map(row => ({
+            phoneNumber: row.phoneNumber?.toString().trim(),
+            name: row.name?.toString().trim(),
+            email: row.email?.toString().trim().toLowerCase(),
+            password: row.password?.toString().trim(),
+            role: row.role?.toString().toLowerCase() === 'admin' ? 'admin' : 'user',
+            isVerified: row.isVerified === true || row.isVerified === 'true' || row.isVerified === 'TRUE' || true,
+            isActive: row.isActive === false || row.isActive === 'false' || row.isActive === 'FALSE' ? false : true,
+            firstName: row.firstName?.toString().trim() || '',
+            lastName: row.lastName?.toString().trim() || '',
+            city: row.city?.toString().trim() || '',
+            state: row.state?.toString().trim() || ''
+        }));
+
+        // Bulk insert with error handling
+        const results = {
+            success: [],
+            failed: []
+        };
+
+        for (let i = 0; i < usersToCreate.length; i++) {
+            try {
+                const user = await User.create(usersToCreate[i]);
+                
+                // Send welcome email
+                if (user.email) {
+                    try {
+                        await sendWelcomeEmail(user.email, user.name);
+                    } catch (emailError) {
+                        console.log('Failed to send welcome email to:', user.email);
+                    }
+                }
+                
+                results.success.push({
+                    row: i + 2,
+                    phoneNumber: user.phoneNumber,
+                    email: user.email,
+                    name: user.name
+                });
+            } catch (error) {
+                results.failed.push({
+                    row: i + 2,
+                    data: {
+                        phoneNumber: usersToCreate[i].phoneNumber,
+                        email: usersToCreate[i].email,
+                        name: usersToCreate[i].name
+                    },
+                    error: error.code === 11000 ? 'Duplicate phone number or email' : error.message
+                });
+            }
+        }
+
+        // Delete the uploaded file
+        deleteFile(filePath);
+
+        res.status(201).json({
+            success: true,
+            message: `Bulk upload completed: ${results.success.length} users created, ${results.failed.length} failed`,
+            data: {
+                totalRows: data.length,
+                successCount: results.success.length,
+                failedCount: results.failed.length,
+                successItems: results.success,
+                failedItems: results.failed.slice(0, 20)
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Error in users bulk upload:', error);
+        
+        if (filePath) {
+            deleteFile(filePath);
+        }
+
+        res.status(500).json({
+            success: false,
+            message: 'Failed to process bulk upload',
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     sendOTP,
     register,
     login,
+    logout,
     verifyOTP,
     getProfile,
     updateProfile,
@@ -1537,5 +1630,6 @@ module.exports = {
     rejectKYC,
     getKYCDetailsByUserId,
     sendEmailOTP,
-    verifyEmailOTP
+    verifyEmailOTP,
+    bulkUploadUsers
 };

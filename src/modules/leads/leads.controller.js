@@ -2,6 +2,7 @@ const Lead = require('./leads.model');
 const Offer = require('../offers/offers.model');
 const User = require('../users/user.model'); // Import User model
 const Wallet = require('../wallet/wallet.model'); // Import Wallet model
+const { parseExcelFile, deleteFile, validateRequiredFields } = require('../../utils/excelParser');
 
 // Get all leads with filters
 const getAllLeads = async (req, res) => {
@@ -703,6 +704,124 @@ const rejectLead = async (req, res) => {
   }
 };
 
+/**
+ * Bulk upload leads from Excel/CSV file
+ */
+const bulkUploadLeads = async (req, res) => {
+  let filePath = null;
+  
+  try {
+    // Check if file was uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload an Excel or CSV file'
+      });
+    }
+
+    filePath = req.file.path;
+    console.log('📄 Processing leads file:', filePath);
+
+    // Parse Excel/CSV file
+    const data = parseExcelFile(filePath);
+
+    if (!data || data.length === 0) {
+      deleteFile(filePath);
+      return res.status(400).json({
+        success: false,
+        message: 'File is empty or contains no valid data'
+      });
+    }
+
+    console.log(`📊 Found ${data.length} leads in the file`);
+
+    // Define required fields for leads
+    const requiredFields = ['leadId', 'offerName', 'category', 'customerName', 'customerContact'];
+
+    // Validate required fields
+    const validation = validateRequiredFields(data, requiredFields);
+
+    if (!validation.isValid) {
+      deleteFile(filePath);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed: Missing required fields',
+        errors: {
+          missingFields: validation.missingFields,
+          invalidRows: validation.invalidRows.slice(0, 10)
+        }
+      });
+    }
+
+    // Transform and prepare leads data
+    const leadsToCreate = data.map(row => ({
+      leadId: row.leadId?.toString().trim(),
+      offerName: row.offerName?.toString().trim(),
+      category: row.category?.toString().trim(),
+      customerName: row.customerName?.toString().trim(),
+      customerContact: row.customerContact?.toString().trim(),
+      customerEmail: row.customerEmail?.toString().trim() || '',
+      hrName: row.hrName?.toString().trim() || '',
+      hrContact: row.hrContact?.toString().trim() || '',
+      status: row.status?.toString().toLowerCase() || 'pending',
+      commission1: row.commission1 ? parseFloat(row.commission1) : 0,
+      commission2: row.commission2 ? parseFloat(row.commission2) : 0,
+      remarks: row.remarks?.toString().trim() || ''
+    }));
+
+    // Bulk insert with error handling
+    const results = {
+      success: [],
+      failed: []
+    };
+
+    for (let i = 0; i < leadsToCreate.length; i++) {
+      try {
+        const lead = await Lead.create(leadsToCreate[i]);
+        results.success.push({
+          row: i + 2,
+          leadId: lead.leadId,
+          offerName: lead.offerName
+        });
+      } catch (error) {
+        results.failed.push({
+          row: i + 2,
+          data: leadsToCreate[i],
+          error: error.message
+        });
+      }
+    }
+
+    // Delete the uploaded file
+    deleteFile(filePath);
+
+    res.status(201).json({
+      success: true,
+      message: `Bulk upload completed: ${results.success.length} leads created, ${results.failed.length} failed`,
+      data: {
+        totalRows: data.length,
+        successCount: results.success.length,
+        failedCount: results.failed.length,
+        successItems: results.success,
+        failedItems: results.failed.slice(0, 20)
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error in leads bulk upload:', error);
+    
+    if (filePath) {
+      deleteFile(filePath);
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to process bulk upload',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getAllLeads,
   getLeadById,
@@ -713,5 +832,6 @@ module.exports = {
   approveLead,
   rejectLead,
   getLeadAnalytics,
-  getAllUsers
+  getAllUsers,
+  bulkUploadLeads
 };

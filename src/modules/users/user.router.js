@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const upload = require('../../middleware/upload.middleware');
 const {
     sendOTP,
     register,
     login,
+    logout,
     verifyOTP,
     getProfile,
     updateProfile,
@@ -24,7 +26,8 @@ const {
     rejectKYC,
     getKYCDetailsByUserId,
     sendEmailOTP,
-    verifyEmailOTP
+    verifyEmailOTP,
+    bulkUploadUsers
 } = require('./user.controller');
 
 const {
@@ -227,6 +230,33 @@ router.post('/register', register);
  *               $ref: '#/components/schemas/Error'
  */
 router.post('/login', login);
+
+/**
+ * @swagger
+ * /api/users/logout:
+ *   post:
+ *     summary: Logout user (clear active session)
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.post('/logout', authenticateToken, logout);
 
 /**
  * @swagger
@@ -503,6 +533,125 @@ router.put('/change-password', authenticateToken, changePassword);
  *               $ref: '#/components/schemas/Error'
  */
 router.get('/admin/users', authenticateToken, requireAdmin, getAllUsers);
+
+/**
+ * @swagger
+ * /api/users/admin/bulk-upload:
+ *   post:
+ *     summary: Bulk upload users from Excel/CSV file (Admin only)
+ *     tags: [Admin]
+ *     description: Upload an Excel (.xlsx, .xls) or CSV file to create multiple users at once. Maximum file size is 10MB. Passwords will be automatically hashed.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Excel or CSV file with users data. Required columns - phoneNumber, name, email, password. Optional columns - role, isVerified, isActive, firstName, lastName, city, state
+ *     responses:
+ *       201:
+ *         description: Bulk upload completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Bulk upload completed: 95 users created, 5 failed"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     totalRows:
+ *                       type: number
+ *                       example: 100
+ *                     successCount:
+ *                       type: number
+ *                       example: 95
+ *                     failedCount:
+ *                       type: number
+ *                       example: 5
+ *                     successItems:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           row:
+ *                             type: number
+ *                             example: 2
+ *                           phoneNumber:
+ *                             type: string
+ *                             example: "9876543210"
+ *                           email:
+ *                             type: string
+ *                             example: "john@example.com"
+ *                           name:
+ *                             type: string
+ *                             example: "John Doe"
+ *                     failedItems:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           row:
+ *                             type: number
+ *                             example: 15
+ *                           data:
+ *                             type: object
+ *                             properties:
+ *                               phoneNumber:
+ *                                 type: string
+ *                               email:
+ *                                 type: string
+ *                               name:
+ *                                 type: string
+ *                           error:
+ *                             type: string
+ *                             example: "Duplicate phone number or email"
+ *       400:
+ *         description: Invalid file format or validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Validation failed: Missing required fields"
+ *                 errors:
+ *                   type: object
+ *                   properties:
+ *                     missingFields:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       example: ["phoneNumber", "email", "password"]
+ *                     invalidRows:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *       401:
+ *         description: Unauthorized - Valid token required
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       500:
+ *         description: Server error during bulk upload
+ */
+router.post('/admin/bulk-upload', authenticateToken, requireAdmin, upload.single('file'), bulkUploadUsers);
 
 /**
  * @swagger

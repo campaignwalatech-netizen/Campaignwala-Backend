@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const upload = require('../../middleware/upload.middleware');
 const {
   getAllLeads,
   getLeadById,
@@ -10,7 +11,8 @@ const {
   approveLead,
   rejectLead,
   getLeadAnalytics,
-  getAllUsers
+  getAllUsers,
+  bulkUploadLeads
 } = require('./leads.controller');
 
 /**
@@ -313,6 +315,109 @@ router.get('/:id', getLeadById);
  *                   $ref: '#/components/schemas/Lead'
  */
 router.post('/', createLead);
+
+/**
+ * @swagger
+ * /api/leads/bulk-upload:
+ *   post:
+ *     summary: Bulk upload leads from Excel/CSV file
+ *     tags: [Leads]
+ *     description: Upload an Excel (.xlsx, .xls) or CSV file to create multiple leads at once. Maximum file size is 10MB.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Excel or CSV file with leads data. Required columns - leadId, offerName, category, customerName, customerContact. Optional columns - customerEmail, hrName, hrContact, status, commission1, commission2, remarks
+ *     responses:
+ *       201:
+ *         description: Bulk upload completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Bulk upload completed: 80 leads created, 3 failed"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     totalRows:
+ *                       type: number
+ *                       example: 83
+ *                     successCount:
+ *                       type: number
+ *                       example: 80
+ *                     failedCount:
+ *                       type: number
+ *                       example: 3
+ *                     successItems:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           row:
+ *                             type: number
+ *                             example: 2
+ *                           leadId:
+ *                             type: string
+ *                             example: "LEAD001"
+ *                           offerName:
+ *                             type: string
+ *                             example: "Premium Offer"
+ *                     failedItems:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           row:
+ *                             type: number
+ *                             example: 10
+ *                           data:
+ *                             type: object
+ *                           error:
+ *                             type: string
+ *                             example: "Duplicate leadId"
+ *       400:
+ *         description: Invalid file format or validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Validation failed: Missing required fields"
+ *                 errors:
+ *                   type: object
+ *                   properties:
+ *                     missingFields:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       example: ["leadId", "customerName"]
+ *                     invalidRows:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *       500:
+ *         description: Server error during bulk upload
+ */
+router.post('/bulk-upload', upload.single('file'), bulkUploadLeads);
 
 /**
  * @swagger

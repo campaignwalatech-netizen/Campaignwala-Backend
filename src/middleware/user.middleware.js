@@ -31,7 +31,24 @@ const authenticateToken = async (req, res, next) => {
             });
         }
 
+        // Check if this is the active session (single device login)
+        if (user.activeSession && user.activeSession !== token) {
+            console.log('⚠️ Session mismatch detected for user:', user.phoneNumber);
+            console.log('🔒 User logged in from another device/location');
+            return res.status(401).json({
+                success: false,
+                message: 'Your account is logged in from another device. You have been logged out.',
+                sessionExpired: true,
+                reason: 'logged_in_elsewhere'
+            });
+        }
+
+        // Update last activity
+        user.lastActivity = new Date();
+        await user.save();
+
         req.user = user;
+        req.token = token; // Store token for logout functionality
         next();
     } catch (error) {
         if (error.name === 'JsonWebTokenError') {

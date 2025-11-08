@@ -60,6 +60,23 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    // Session Management - Single Device Login
+    activeSession: {
+        type: String,
+        default: null // Store current active JWT token
+    },
+    sessionDevice: {
+        type: String,
+        default: null // Store device info (user-agent)
+    },
+    sessionIP: {
+        type: String,
+        default: null // Store IP address
+    },
+    lastActivity: {
+        type: Date,
+        default: null // Track last activity time
+    },
     // Personal Details
     firstName: {
         type: String,
@@ -228,6 +245,7 @@ userSchema.methods.toJSON = function () {
     delete userObject.password;
     delete userObject.otpAttempts;
     delete userObject.lastOtpSent;
+    delete userObject.activeSession;
     return userObject;
 };
 
